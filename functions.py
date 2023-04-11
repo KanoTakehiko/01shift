@@ -2,6 +2,7 @@ import pandas as pd
 import re
 import datetime
 import classes
+from tqdm import tqdm
 
 def get_df():
     xlsx_path = input('アンケート結果のパスを入力してください\n').replace('\"','')
@@ -27,16 +28,14 @@ def get_blocks(cols):
             end_datetime = datetime.datetime(year=2023,month=month,day=day,hour=end_hour,minute=end_minute)
             block = classes.MicroBlock(start = start_datetime,end = end_datetime,text=text)
             blocks.append(block)
-    blocks = tuple(blocks)
-    return blocks
+    return tuple(blocks)
 
 def get_dates(blocks):
     dates = set()
     for block in blocks:
         dates.add(block.date)
     dates = sorted(dates)
-    dates = tuple(dates)
-    return dates
+    return tuple(dates)
 
 def get_answers(df,blocks):
     answers = []
@@ -45,8 +44,7 @@ def get_answers(df,blocks):
         series = df.loc[n]
         ans = classes.Answer(person_id = n,series=series,blocks=blocks)
         answers.append(ans)
-    answers = tuple(answers)
-    return answers
+    return tuple(answers)
 
 def get_dayshift_patterns(answer,day_blocks,day):
     person_id = answer.person_id
@@ -56,14 +54,15 @@ def get_dayshift_patterns(answer,day_blocks,day):
         if not answer.answer[day_blocks[n]]:
             continue
         current = [day_blocks[n]]
-        patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = current.copy()))
+        patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current)))
         for m in range(n+1,len(day_blocks)):
             if answer.answer[day_blocks[m]]:
                 current.append(day_blocks[m])
-                patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = current.copy()))
+                patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current)))
             else:
                 break
-    return patterns
+    patterns = [pattern for pattern in patterns if pattern.is_ok]
+    return tuple(patterns)
 
 def get_dayshift_for_all(dates,blocks,answers):
     patterns = []
@@ -71,4 +70,27 @@ def get_dayshift_for_all(dates,blocks,answers):
         day_blocks = [block for block in blocks if block.date == day]
         for answer in answers:
             patterns += get_dayshift_patterns(answer = answer, day_blocks = day_blocks, day = day)
-    return patterns
+    return tuple(patterns)
+
+def get_monthshift_patterns(person_day_shift_list,dates):
+    old = [()]
+    for day in dates:
+        the_day_shift_list = [day_shift for day_shift in person_day_shift_list if day_shift.day == day]
+        new = []
+        for old_month_shift in old:
+            for day_shift in the_day_shift_list:
+                new.append(old_month_shift+(day_shift,))
+        old = new
+    monthshift_patterns = []
+    for month_shift in new:
+        monthshift_patterns.append(classes.MonthShift(person_id = month_shift[0].person_id, name = month_shift[0].name, month_shift = tuple(month_shift)))
+    monthshift_patterns = [pattern for pattern in monthshift_patterns if pattern.is_ok]
+    return tuple(monthshift_patterns)
+
+def get_monthshift_for_all(day_shift_patterns,person_id_tuple,dates):
+    patterns = []
+    for id,i in enumerate(person_id_tuple):
+        person_day_shift_list = [day_shift for day_shift in day_shift_patterns if day_shift.person_id == id]
+        month_shift_patterns = get_monthshift_patterns(person_day_shift_list=person_day_shift_list,dates=dates)
+        patterns += month_shift_patterns
+    return tuple(patterns)

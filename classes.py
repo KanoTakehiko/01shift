@@ -1,4 +1,5 @@
 import datetime
+import settings
 
 class MicroBlock: #シフトの1コマ
     def __init__(self,start,end,text): #startとendはdatetimeオブジェクト。textはデータフレームでの列名
@@ -64,3 +65,37 @@ class DayShift:
     
     def __str__(self):
         return f'{self.name}({self.person_id})の{self.day}のシフトの候補'
+    
+    @property
+    def is_ok(self):
+        return settings.min_continue < self.long < settings.max_continue or self.long == datetime.timedelta(minutes=0)
+
+
+class MonthShift:
+    def __init__(self,person_id,name,month_shift):
+        for day_shift in month_shift:
+            if not isinstance(day_shift,DayShift):
+                raise TypeError(f'month_shiftの中に{day_shift}が入っています。')
+            elif day_shift.person_id != person_id or day_shift.name != name:
+                raise Exception(f'違う人の1日のシフトが同じMonthShiftインスタンスに含まれています。')
+        self.month_shift = month_shift
+        self.name = name
+        self.person_id = person_id
+    
+    @property
+    def long(self):
+        delta_list = []
+        for day_shift in self.month_shift:
+            if isinstance(day_shift,DayShift):
+                delta_list.append(day_shift.long)
+        return sum(delta_list)
+    
+    @property
+    def is_ok(self):
+        work_list = []
+        for day_shift in self.month_shift:
+            work_list.append(day_shift.work)
+        return sum(work_list) < settings.max_work
+    
+    def __str__(self):
+        return f'{self.name}({self.person_id})の1か月のシフトの候補'
