@@ -6,6 +6,8 @@ class MicroBlock: #シフトの1コマ
         self.start = start
         self.end = end
         self.text = text
+        self.min_require = 0
+        self.max_require = 0
         if start.date() != end.date():
             raise ValueError('startとendの日付が異なります。')
         else:
@@ -43,11 +45,12 @@ class Answer:
 
 
 class DayShift:
-    def __init__(self,person_id,name,day,day_shift):
+    def __init__(self,person_id,name,day,day_shift,answer):
         self.person_id = person_id
         self.name = name
         self.day = day
         self.day_shift = day_shift
+        self.answer = answer
         for x in day_shift:
             if not isinstance(x,MicroBlock):
                 raise TypeError(f'DayShiftインスタンスのリストの中に{x}が入っています')
@@ -68,11 +71,11 @@ class DayShift:
     
     @property
     def is_ok(self):
-        return settings.min_continue < self.long < settings.max_continue or self.long == datetime.timedelta(minutes=0)
+        return settings.min_continue <= self.long <= settings.max_continue or self.long == datetime.timedelta(minutes=0)
 
 
 class MonthShift:
-    def __init__(self,person_id,name,month_shift):
+    def __init__(self,person_id,name,month_shift,answer):
         for day_shift in month_shift:
             if not isinstance(day_shift,DayShift):
                 raise TypeError(f'month_shiftの中に{day_shift}が入っています。')
@@ -81,6 +84,8 @@ class MonthShift:
         self.month_shift = month_shift
         self.name = name
         self.person_id = person_id
+        self.answer = answer
+        self.var = 'undefined'
     
     @property
     def long(self):
@@ -95,7 +100,15 @@ class MonthShift:
         work_list = []
         for day_shift in self.month_shift:
             work_list.append(day_shift.work)
-        return sum(work_list) < settings.max_work
+        return sum(work_list) <= settings.max_work_days
     
     def __str__(self):
         return f'{self.name}({self.person_id})の1か月のシフトの候補'
+    
+    @property
+    def flat(self):
+        flat_list = []
+        for day_shift in self.month_shift:
+            for block in day_shift.day_shift:
+                flat_list.append(block)
+        return flat_list

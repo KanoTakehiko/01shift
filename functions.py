@@ -3,6 +3,8 @@ import re
 import datetime
 import classes
 from tqdm import tqdm
+import mip
+import settings
 
 def get_df():
     xlsx_path = input('アンケート結果のパスを入力してください\n').replace('\"','')
@@ -49,16 +51,16 @@ def get_answers(df,blocks):
 def get_dayshift_patterns(answer,day_blocks,day):
     person_id = answer.person_id
     name = answer.name
-    patterns = [classes.DayShift(person_id = person_id, name = name, day=day, day_shift = [])]
+    patterns = [classes.DayShift(person_id = person_id, name = name, day=day, day_shift = [],answer=answer)]
     for n in range(len(day_blocks)):
         if not answer.answer[day_blocks[n]]:
             continue
         current = [day_blocks[n]]
-        patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current)))
+        patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current),answer=answer))
         for m in range(n+1,len(day_blocks)):
             if answer.answer[day_blocks[m]]:
                 current.append(day_blocks[m])
-                patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current)))
+                patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current),answer = answer))
             else:
                 break
     patterns = [pattern for pattern in patterns if pattern.is_ok]
@@ -83,7 +85,7 @@ def get_monthshift_patterns(person_day_shift_list,dates):
         old = new
     monthshift_patterns = []
     for month_shift in new:
-        monthshift_patterns.append(classes.MonthShift(person_id = month_shift[0].person_id, name = month_shift[0].name, month_shift = tuple(month_shift)))
+        monthshift_patterns.append(classes.MonthShift(person_id = month_shift[0].person_id, name = month_shift[0].name, month_shift = tuple(month_shift),answer = month_shift[0].answer))
     monthshift_patterns = [pattern for pattern in monthshift_patterns if pattern.is_ok]
     return tuple(monthshift_patterns)
 
@@ -94,3 +96,30 @@ def get_monthshift_for_all(day_shift_patterns,person_id_tuple,dates):
         month_shift_patterns = get_monthshift_patterns(person_day_shift_list=person_day_shift_list,dates=dates)
         patterns += month_shift_patterns
     return tuple(patterns)
+
+def register(month_shift_patterns):
+    model = mip.Model()
+    for pattern in month_shift_patterns:
+        pattern.var = model.add_var('x',var_type = 'B')
+    return model
+
+def one2one(month_shift_patterns,person_id_tuple,model):
+    for id in person_id_tuple:
+        person_monthshift_var_list = [month_shift.var for month_shift in month_shift_patterns if month_shift.person_id == id]
+        model += sum(person_monthshift_var_list) == 1
+    return model
+
+def set_requirements(blocks,month_shift_patterns,model):
+    for start,end,min,max in ((settings.normal_shift_start,settings.normal_shift_end,settings.min_shift,settings.max_shift),
+                              (settings.help_start,settings.help_end,settings.min_help,settings.max_help),
+                              (settings.desert_start,settings.desert_end,settings.min_desert,settings.max_desert),
+                              (settings.lunch_start,settings.lunch_end,settings.min_lunch,settings.max_lunch)):
+        shift_blocks = [block for block in blocks if start <= block.start.time() and block.end.time() <= end]
+        for block in shift_blocks:
+            block.min_require += min
+            block.max_require += max
+
+    for block in blocks:
+        model += block.min_require <= sum([pattern.var for pattern in month_shift_patterns if block in pattern.flat])
+        model += sum([pattern.var for pattern in month_shift_patterns if block in pattern.flat]) <= block.max_require
+    return model
