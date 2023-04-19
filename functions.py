@@ -153,12 +153,63 @@ def set_requirements(blocks:list,month_shift_patterns:list,model:mip.Model) ->mi
                             (settings.min_desert,settings.max_desert,'desert',block.in_desert_time),
                             (settings.min_lunch,settings.max_lunch,'lunch',block.in_lunch_time)):
             if included:
-                target_blocks = []
+                target_patterns = []
                 for month_shift in month_shift_patterns:
+                    assert isinstance(month_shift,classes.MonthShift)
                     for day_shift in month_shift.month_shift:
-                        if classes.Microblock_with_roletype(block,role) in day_shift.day_shift and month_shift not in target_blocks:
-                            target_blocks.append(month_shift)
-                if len(target_blocks) > 0:
-                    model += min <= sum([block.var for block in target_blocks])
-                    model += max >= sum([block.var for block in target_blocks])
+                        assert isinstance(day_shift,classes.DayShift)
+                        if classes.Microblock_with_roletype(block,role) in day_shift.day_shift and month_shift not in target_patterns:
+                            target_patterns.append(month_shift)
+                if len(target_patterns) > 0:
+                    model += min <= sum([pattern.var for pattern in target_patterns])
+                    model += sum([pattern.var for pattern in target_patterns]) <= max
+                if role == 'normal':
+                    #ノーマルシフトの上級生の数
+                    target_vars = [pattern.var for pattern in target_patterns if pattern.answer.is_senior]
+                    if target_vars != []:
+                        model += settings.min_senior <= sum(target_vars)
+                        model += sum(target_vars) <= settings.max_senior
+                    #ノーマルシフトの新入生の数
+                    target_vars = [pattern.var for pattern in target_patterns if not pattern.answer.is_senior]
+                    if target_vars != []:
+                        model += settings.min_junior <= sum(target_vars)
+                        model += sum(target_vars) <= settings.max_junior
     return model
+
+def set_objective(model:mip.Model, month_shift_patterns:tuple) ->mip.Model:
+    objective = 0
+    objective += sum([pattern.minutes*pattern.var for pattern in month_shift_patterns])*100000000
+    objective += sum([(pattern.minutes**2)*pattern.var for pattern in month_shift_patterns])*(-1)
+    model.objective = mip.maximize(objective)
+    return model
+
+def solve(model:mip.Model) ->mip.Model:
+    model.verbose = 0
+    model.optimize()
+    if model.status.value == 0:
+        print('最適化に成功しました。')
+        return model
+    else:
+        raise Exception('最適化に失敗しました。')
+
+def plot_to_df(month_shift_patterns:tuple,base_df:pd.DataFrame):
+    columns = base_df.columns
+    index = base_df['名前']
+    base_df.index = index
+    df = pd.DataFrame([['']*len(columns)]*len(index), index=index, columns=columns)
+    for col in ('上級生','ランチ班','デザート班'):
+        for i in index:
+            df[col][i] = base_df[col][i]
+    df = df.drop('名前',axis=1)
+    for pattern in month_shift_patterns:
+        assert isinstance(pattern,classes.MonthShift)
+        if pattern.var.x == 1:
+            for day_shift in pattern.month_shift:
+                assert isinstance(day_shift,classes.DayShift)
+                for block in day_shift.day_shift:
+                    assert isinstance(block,classes.Microblock_with_roletype)
+                    assert df[block.text][pattern.name] == ''
+                    df[block.text][pattern.name] = block.role
+        else:
+            assert pattern.var.x == 0
+    return df

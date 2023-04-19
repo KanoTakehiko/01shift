@@ -110,6 +110,12 @@ class DayShift:
     def is_ok(self):
         return settings.min_continue <= self.long <= settings.max_continue or self.long == datetime.timedelta(minutes=0)
 
+    @property
+    def minutes(self):
+        return sum([block.minutes for block in self.day_shift])
+    @property
+    def minutes(self):
+        return sum([block.minutes for block in self.day_shift])
 
 class MonthShift:
     def __init__(self,person_id:int,name:str,month_shift:list,answer:Answer):#month_shiftの中にはDayShiftオブジェクト
@@ -149,3 +155,7 @@ class MonthShift:
             for block in day_shift.day_shift:
                 flat_list.append(block)
         return flat_list
+    
+    @property
+    def minutes(self):
+        return sum([day_shift.minutes for day_shift in self.month_shift])
