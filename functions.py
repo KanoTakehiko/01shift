@@ -86,19 +86,19 @@ def get_dayshift_patterns(answer:classes.Answer,day_blocks:list,day:datetime.dat
         if not answer.answer[day_blocks[n]]:
             continue
         current = [day_blocks[n]]
-        patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(current),answer=answer))
+        patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = current,answer=answer))
         for m in range(n+1,len(day_blocks)):
             if answer.answer[day_blocks[m]]:
                 current.append(day_blocks[m])
                 for pattern in set_roles_to_dayshift(day_shift=current,answer=answer):
-                    patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = tuple(pattern),answer = answer))
+                    patterns.append(classes.DayShift(person_id = person_id, name = name, day=day, day_shift = pattern,answer = answer))
             else:
                 break
     patterns = [pattern for pattern in patterns if pattern.is_ok]#連続してシフトに入る時間を調べて、条件に合うものだけ残す
     return tuple(patterns)
 
 #日付一覧、Microblock一覧、Answerオブジェクトの一覧->全てのメンバーの全ての日の1日のシフトの候補一覧
-def get_dayshift_for_all(dates:list,blocks:list,answers:list):
+def get_dayshift_for_all(dates:list,blocks:list,answers:list) ->tuple:
     patterns = []
     for day in dates:
         day_blocks = [block for block in blocks if block.date == day]
@@ -107,7 +107,7 @@ def get_dayshift_for_all(dates:list,blocks:list,answers:list):
     return tuple(patterns)
 
 #1人の全ての日のシフトの候補の一覧、日付一覧->その人の1か月のシフトの候補の一覧
-def get_monthshift_patterns(person_day_shift_list:list,dates:list):
+def get_monthshift_patterns(person_day_shift_list:list,dates:list) ->tuple:
     old = [()]
     for day in dates:
         the_day_shift_list = [day_shift for day_shift in person_day_shift_list if day_shift.day == day]
@@ -118,7 +118,7 @@ def get_monthshift_patterns(person_day_shift_list:list,dates:list):
         old = new
     monthshift_patterns = []
     for month_shift in new:
-        monthshift_patterns.append(classes.MonthShift(person_id = month_shift[0].person_id, name = month_shift[0].name, month_shift = tuple(month_shift),answer = month_shift[0].answer))
+        monthshift_patterns.append(classes.MonthShift(person_id = month_shift[0].person_id, name = month_shift[0].name, month_shift = month_shift,answer = month_shift[0].answer))
     monthshift_patterns = [pattern for pattern in monthshift_patterns if pattern.is_ok]
     return tuple(monthshift_patterns)
 

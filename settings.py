@@ -6,7 +6,7 @@ max_continue = timedelta(hours=4)
 max_work_days = 2
 
 min_senior = 0
-max_senior = 1
+max_senior = 2
 
 min_junior = 0
 max_junior = 1

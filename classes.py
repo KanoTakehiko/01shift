@@ -86,7 +86,7 @@ class DayShift:
         self.person_id = person_id
         self.name = name
         self.day = day
-        self.day_shift = day_shift
+        self.day_shift = tuple(day_shift)
         self.answer = answer
         for x in day_shift:
             if not isinstance(x,MicroBlock):
@@ -124,7 +124,7 @@ class MonthShift:
                 raise TypeError(f'month_shiftの中に{day_shift}が入っています。')
             elif day_shift.person_id != person_id or day_shift.name != name:
                 raise Exception(f'違う人の1日のシフトが同じMonthShiftインスタンスに含まれています。')
-        self.month_shift = month_shift
+        self.month_shift = tuple(month_shift)
         self.name = name
         self.person_id = person_id
         self.answer = answer
